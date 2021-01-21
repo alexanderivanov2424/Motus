@@ -59,7 +59,7 @@ class Motus:
         self.moved_piece = None #None or board loc | once moved ends buy phase
         self.moves_done = False # need this if normal piece moves while other poweredup piece attacks
         self.turn_done = False
-        self.powerups_list = [] #can't move pieces powered up same turn
+        self.placed_in_turn_list = [] #can't move pieces powered up same turn
 
         self.error = ""
 
@@ -96,7 +96,7 @@ class Motus:
         self.moved_piece = None #None or board loc
         self.moves_done = False
         self.turn_done = False
-        self.powerups_list = []
+        self.placed_in_turn_list = []
 
     def make_move(self, start, end):
         if self.board[start[0]][start[1]] == 0:
@@ -117,7 +117,7 @@ class Motus:
         if start[0] == end[0] and start[1] == end[1]:
             self.error = "didn't move"
             return #invalid
-        for loc in self.powerups_list:
+        for loc in self.placed_in_turn_list:
             if loc[0] == start[0] and loc[1] == start[1]:
                 self.error = "mv p-up same turn"
                 return
@@ -266,6 +266,7 @@ class Motus:
             else:
                 self.board[loc[0]][loc[1]] = -1
                 self.p2_peices -= 1
+            self.placed_in_turn_list.append(list(loc))
         elif type == 'powerup':
             if self.player == 1 and loc[0] not in [6,7]:
                 self.error = "only 1st/2nd row"
@@ -285,7 +286,7 @@ class Motus:
             else:
                 self.board[loc[0]][loc[1]] = -2
                 self.p2_powerups -= 1
-            self.powerups_list.append(list(loc))
+            self.placed_in_turn_list.append(list(loc))
         elif type == 'ring':
             if loc[0] in [0,7]:
                 self.error = "not 1st/last row"
@@ -298,6 +299,9 @@ class Motus:
             return
 
     def make_buy(self, type):
+        if self.moved_piece != None:
+            self.error="buy phase over"
+            return
         if type == 'piece':
             if self.player == 1:
                 if self.p1_power < 1:
@@ -313,19 +317,19 @@ class Motus:
                 self.p2_power -= 1
         elif type == 'powerup':
             if self.player == 1:
-                if self.p1_power < 2 if self.has_bought_powerup else 4:
+                if self.p1_power < (2 if self.has_bought_powerup else 4):
                     self.error = "not enough"
                     return
                 self.p1_powerups += 1
+                self.p1_power -= (2 if self.has_bought_powerup else 4)
                 self.has_bought_powerup = True
-                self.p1_power -= 2 if self.has_bought_powerup else 4
             else:
-                if self.p2_power < 2 if self.has_bought_powerup else 4:
+                if self.p2_power < (2 if self.has_bought_powerup else 4):
                     self.error = "not enough"
                     return
                 self.p2_powerups += 1
+                self.p2_power -= (2 if self.has_bought_powerup else 4)
                 self.has_bought_powerup = True
-                self.p2_power -= 2 if self.has_bought_powerup else 4
         elif type == 'ring':
             if self.player == 1:
                 if self.p1_power < 4:
