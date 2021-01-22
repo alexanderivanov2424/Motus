@@ -111,9 +111,9 @@ class Motus:
                     self.p2_power += 2
                     self.p2_score += 1
             if self.player == 1:
-                self.p1_power += 1
+                self.p1_power = min(self.p1_power + 1, 8)
             else:
-                self.p2_power += 1
+                self.p2_power = min(self.p2_power + 1, 8)
             self.reset_turn()
             self.player = 2 if self.player == 1 else 1
 
@@ -337,12 +337,14 @@ class Motus:
                     self.error = "not enough"
                     return
                 self.p1_pieces += 1
+                self.p1_pieces_to_buy -= 1
                 self.p1_power -= 1
             else:
                 if self.p2_power < 1:
                     self.error = "not enough"
                     return
                 self.p2_pieces += 1
+                self.p2_pieces_to_buy -= 1
                 self.p2_power -= 1
         elif type == 'powerup':
             if self.player == 1:
@@ -350,6 +352,7 @@ class Motus:
                     self.error = "not enough"
                     return
                 self.p1_powerups += 1
+                sefl.p1_powerups_to_buy -= 1
                 self.p1_power -= (2 if self.has_bought_powerup else 4)
                 self.has_bought_powerup = True
             else:
@@ -357,6 +360,7 @@ class Motus:
                     self.error = "not enough"
                     return
                 self.p2_powerups += 1
+                sefl.p2_powerups_to_buy -= 1
                 self.p2_power -= (2 if self.has_bought_powerup else 4)
                 self.has_bought_powerup = True
         elif type == 'ring':
@@ -365,12 +369,14 @@ class Motus:
                     self.error = "not enough"
                     return
                 self.p1_rings += 1
+                self.rings -= 1
                 self.p1_power -= 4
             else:
                 if self.p2_power < 4:
                     self.error = "not enough"
                     return
                 self.p2_rings += 1
+                self.rings -= 1
                 self.p2_power -= 4
         else:
             self.error = "!! invalid piece !!"
@@ -449,7 +455,7 @@ class Motus:
             if key_code == UP:
                 if self.cursor[1] > 0:
                     self.cursor[1] -= 1
-                elif self.cursor[1] == 0 and not self.player == 1 and self.p2_pieces + self.p2_powerups > 0:
+                elif self.cursor[1] == 0 and not self.player == 1 and self.p2_pieces + self.p2_powerups + self.p1_rings > 0:
                     self.cursor[0] = 1
                     self.cursor[2] = min((7 - self.cursor[2]), self.p2_pieces + self.p2_powerups - 1)
                 elif self.cursor[1] == 0 and self.player == 1:
@@ -464,7 +470,7 @@ class Motus:
             elif key_code == DOWN:
                 if self.cursor[1] < 7:
                     self.cursor[1] += 1
-                elif self.cursor[1] == 7 and self.player == 1 and self.p1_pieces + self.p1_powerups > 0:
+                elif self.cursor[1] == 7 and self.player == 1 and self.p1_pieces + self.p1_powerups + self.p1_rings > 0:
                     self.cursor[0] = 1
                     self.cursor[2] = min(self.cursor[2], self.p1_pieces + self.p1_powerups - 1)
                 elif self.cursor[1] == 7 and not self.player == 1:
@@ -690,15 +696,16 @@ class Motus:
             arr[21][3+i] = self.error[i]
 
     def place_score(self, arr):
-        score = "S C O R E"
-        for i in range(len(score)):
-            arr[11][39+i] = score[i]
         score = self.piece_dict[1] + ": " + str(self.p1_score) + "-" + str(self.p2_score) + " :" + self.piece_dict[-1]
         for i in range(len(score)):
-            arr[12][39+i] = score[i]
+            arr[11][39+i] = score[i]
 
+    def place_turn(self, arr, animation):
+        text = "**TURN**" if animation else ""
+        for i in range(len(text)):
+            arr[12][39+i] = text[i]
 
-    def render(self, animation, player_view, do_turn = True):
+    def render(self, animation, player_view, do_turn = True, is_turn = False):
         arr = [[' ' for _ in range(49)] for _ in range (22)]
 
         self.place_power_bar_down(arr, player_view, animation=animation)
@@ -713,7 +720,8 @@ class Motus:
         self.place_cursor(arr, player_view, animation)
         self.place_score(arr)
         self.place_error(arr)
-
+        if is_turn:
+            self.place_turn(arr, animation)
         if do_turn:
             self.next_turn()
 
@@ -856,7 +864,7 @@ def networked_game(ip, port, is_host=True):
             need_render = True
 
         if need_render:
-            game.render(animation, (1 if is_host else 2), is_my_turn)
+            game.render(animation, (1 if is_host else 2), is_my_turn, is_my_turn)
             if game.turn_just_changed or is_my_turn:
                 game.turn_just_changed = False
                 _ = update_game(s, game)
