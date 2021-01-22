@@ -1,24 +1,63 @@
+# -*- coding: utf-8 -*-
+
 import numpy as np
 import os
+import sys
 
 import threading
 import queue
 import time
-from msvcrt import getch
 
 import socket, pickle
-"""
-2-player
-1-vs AI
 
-ring can be places in first or last 2 rows
-powerup only in first 2? or 3 rows
-piece can only be bought into first row
+EXIT_COMMAND = 113
+SELECT = 115
+DESELECT = 100
+END_TURN = 13
 
-piece costs 1, ring costs 4, powerup is 4 for 1, 6 for 2 and 8 for 3
+NAV_UP = 105
+NAV_LEFT = 106
+NAV_DOWN = 107
+NAV_RIGHT = 108
 
-**cannot buy after moving**
-"""
+class _Getch:
+    """Gets a single character from standard input.  Does not echo to the screen."""
+    def __init__(self):
+        try:
+            self.impl = _GetchWindows()
+        except ImportError:
+            self.impl = _GetchUnix()
+
+    def __call__(self): return self.impl()
+
+
+class _GetchUnix:
+    def __init__(self):
+        import tty, sys
+
+    def __call__(self):
+        import sys, tty, termios
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(sys.stdin.fileno())
+            ch = sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return ch
+
+
+class _GetchWindows:
+    def __init__(self):
+        import msvcrt
+
+    def __call__(self):
+        import msvcrt
+        return msvcrt.getch()
+
+
+getch = _Getch()
+
 class Motus:
     def __init__(self):
         self.board = np.zeros((8,8))
@@ -32,14 +71,14 @@ class Motus:
         self.p1_score = 0
         self.p2_score = 0
 
-        self.p1_power = 0
+        self.p1_power = 4
         self.p1_pieces = 0
         self.p1_powerups = 0
         self.p1_rings = 0
         self.p1_pieces_to_buy = 3
         self.p1_powerups_to_buy = 4
 
-        self.p2_power = 1 #start with 1 extra power because second
+        self.p2_power = 5 #start with 1 extra power because second
         self.p2_pieces = 0
         self.p2_rings = 0
         self.p2_powerups = 0
@@ -275,10 +314,10 @@ class Motus:
         self.board[start[0]][start[1]] = 0
         if self.player == 1:
             self.p1_score += 1
-            self.p1_power += 2
+            self.p1_power += min(self.p1_power + 2, 8)
         else:
             self.p2_score += 1
-            self.p2_power += 2
+            self.p2_power = min(self.p2_power + 2, 8)
 
     def make_place(self, loc, type):
         if type == 'piece':
@@ -352,7 +391,7 @@ class Motus:
                     self.error = "not enough"
                     return
                 self.p1_powerups += 1
-                sefl.p1_powerups_to_buy -= 1
+                self.p1_powerups_to_buy -= 1
                 self.p1_power -= (2 if self.has_bought_powerup else 4)
                 self.has_bought_powerup = True
             else:
@@ -441,15 +480,15 @@ class Motus:
         if not key_code in [105,106,107,108]:
             return
         if self.player == 1:
-            UP = 105
-            LEFT = 106
-            DOWN = 107
-            RIGHT = 108
+            UP = NAV_UP
+            LEFT = NAV_LEFT
+            DOWN = NAV_DOWN
+            RIGHT = NAV_RIGHT
         else:
-            UP = 107
-            LEFT = 108
-            DOWN = 105
-            RIGHT = 106
+            UP = NAV_DOWN
+            LEFT = NAV_RIGHT
+            DOWN = NAV_UP
+            RIGHT = NAV_LEFT
 
         if self.cursor[0] == 0: #board
             if key_code == UP:
@@ -733,14 +772,11 @@ class Motus:
             s += "\n"
         print(s)
 
-
-
 def read_kbd_input(inputQueue):
     while (True):
         inputQueue.put(ord(getch()))
 
 def local_game():
-    EXIT_COMMAND = 113
     inputQueue = queue.Queue()
 
     inputThread = threading.Thread(target=read_kbd_input, args=(inputQueue,), daemon=True)
@@ -755,9 +791,9 @@ def local_game():
     game.render(False, game.player)
 
     while (True):
-        if (inputQueue.qsize() > 0):
+        if inputQueue.qsize() > 0:
             key_code = inputQueue.get()
-            if (key_code == EXIT_COMMAND):
+            if key_code == EXIT_COMMAND:
                 print("Exiting Game")
                 break
 
@@ -815,7 +851,6 @@ def update_game(s, game):
     return new_game
 
 def networked_game(ip, port, is_host=True):
-    EXIT_COMMAND = 113
     inputQueue = queue.Queue()
 
     if is_host:
@@ -846,7 +881,7 @@ def networked_game(ip, port, is_host=True):
                 game = new_game
                 need_render = True
 
-        if (inputQueue.qsize() > 0):
+        if inputQueue.qsize() > 0:
             key_code = inputQueue.get()
             if (key_code == EXIT_COMMAND):
                 print("Exiting Game")
