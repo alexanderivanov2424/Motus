@@ -5,6 +5,8 @@ import threading
 import queue
 import time
 from msvcrt import getch
+
+import socket, pickle
 """
 2-player
 1-vs AI
@@ -31,17 +33,17 @@ class Motus:
         self.p2_score = 0
 
         self.p1_power = 0
-        self.p1_peices = 0
+        self.p1_pieces = 0
         self.p1_powerups = 0
         self.p1_rings = 0
-        self.p1_peices_to_buy = 3
+        self.p1_pieces_to_buy = 3
         self.p1_powerups_to_buy = 4
 
         self.p2_power = 1 #start with 1 extra power because second
-        self.p2_peices = 0
+        self.p2_pieces = 0
         self.p2_rings = 0
         self.p2_powerups = 0
-        self.p2_peices_to_buy = 3
+        self.p2_pieces_to_buy = 3
         self.p2_powerups_to_buy = 4
 
         self.board[0,:] = -1
@@ -62,6 +64,31 @@ class Motus:
         self.placed_in_turn_list = [] #can't move pieces powered up same turn
 
         self.error = ""
+
+        self.turn_just_changed = False
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        if not np.array_equal(self.board,other.board):
+            return False
+        if self.p1_power != other.p2_power:
+            return False
+        if self.p1_pieces != other.p2_pieces:
+            return False
+        if self.p1_powerups != other.p2_powerups:
+            return False
+        if self.p1_rings != other.p2_rings:
+            return False
+        if self.p1_pieces_to_buy != other.p2_pieces_to_buy:
+            return False
+        if self.p1_powerups_to_buy != other.p2_powerups_to_buy:
+            return False
+        if self.rings != other.rings:
+            return False
+        if self.player != other.player:
+            return False
+        return True
 
     def next_turn(self):
         Done = self.turn_done
@@ -97,6 +124,8 @@ class Motus:
         self.moves_done = False
         self.turn_done = False
         self.placed_in_turn_list = []
+
+        self.turn_just_changed = True
 
     def make_move(self, start, end):
         if self.board[start[0]][start[1]] == 0:
@@ -167,12 +196,12 @@ class Motus:
             self.turn_done = self.board[start[0]][start[1]] == 1 #poweredup piece can attack after landing on top
             if self.player == 1:
                 self.p1_power += 1
-                self.p2_peices_to_buy += 1
+                self.p2_pieces_to_buy += 1
                 if abs(target_piece) == 2:
                     self.p2_powerups_to_buy
             else:
                 self.p2_power += 1
-                self.p1_peices_to_buy += 1
+                self.p1_pieces_to_buy += 1
                 if abs(target_piece) == 2:
                     self.p1_powerups_to_buy
         self.board[end[0]][end[1]] = self.board[start[0]][start[1]]
@@ -206,12 +235,12 @@ class Motus:
             self.turn_done = True
             if self.player == 1:
                 self.p1_power += 1
-                self.p2_peices_to_buy += 1
+                self.p2_pieces_to_buy += 1
                 if abs(self.board[end[0]][end[1]]) == 2:
                     self.p2_powerups_to_buy
             else:
                 self.p2_power += 1
-                self.p1_peices_to_buy += 1
+                self.p1_pieces_to_buy += 1
                 if abs(self.board[end[0]][end[1]]) == 2:
                     self.p1_powerups_to_buy
             self.board[end[0]][end[1]] = 0
@@ -262,10 +291,10 @@ class Motus:
                 return
             if self.player == 1:
                 self.board[loc[0]][loc[1]] = 1
-                self.p1_peices -= 1
+                self.p1_pieces -= 1
             else:
                 self.board[loc[0]][loc[1]] = -1
-                self.p2_peices -= 1
+                self.p2_pieces -= 1
             self.placed_in_turn_list.append(list(loc))
         elif type == 'powerup':
             if self.player == 1 and loc[0] not in [6,7]:
@@ -307,13 +336,13 @@ class Motus:
                 if self.p1_power < 1:
                     self.error = "not enough"
                     return
-                self.p1_peices += 1
+                self.p1_pieces += 1
                 self.p1_power -= 1
             else:
                 if self.p2_power < 1:
                     self.error = "not enough"
                     return
-                self.p2_peices += 1
+                self.p2_pieces += 1
                 self.p2_power -= 1
         elif type == 'powerup':
             if self.player == 1:
@@ -368,16 +397,16 @@ class Motus:
                 elif self.selection[0] == 1:
                     type = "none"
                     if self.player == 1:
-                        if self.selection[2] < self.p1_peices:
+                        if self.selection[2] < self.p1_pieces:
                             type = "piece"
-                        elif self.selection[2] < self.p1_peices + self.p1_powerups:
+                        elif self.selection[2] < self.p1_pieces + self.p1_powerups:
                             type = "powerup"
                         else:
                             type = "ring"
                     else:
-                        if self.selection[2] < self.p2_peices:
+                        if self.selection[2] < self.p2_pieces:
                             type = "piece"
-                        elif self.selection[2] < self.p2_peices + self.p2_powerups:
+                        elif self.selection[2] < self.p2_pieces + self.p2_powerups:
                             type = "powerup"
                         else:
                             type = "ring"
@@ -420,9 +449,9 @@ class Motus:
             if key_code == UP:
                 if self.cursor[1] > 0:
                     self.cursor[1] -= 1
-                elif self.cursor[1] == 0 and not self.player == 1 and self.p2_peices + self.p2_powerups > 0:
+                elif self.cursor[1] == 0 and not self.player == 1 and self.p2_pieces + self.p2_powerups > 0:
                     self.cursor[0] = 1
-                    self.cursor[2] = min((7 - self.cursor[2]), self.p2_peices + self.p2_powerups - 1)
+                    self.cursor[2] = min((7 - self.cursor[2]), self.p2_pieces + self.p2_powerups - 1)
                 elif self.cursor[1] == 0 and self.player == 1:
                     self.cursor[0] = 3
             elif key_code == LEFT:
@@ -435,9 +464,9 @@ class Motus:
             elif key_code == DOWN:
                 if self.cursor[1] < 7:
                     self.cursor[1] += 1
-                elif self.cursor[1] == 7 and self.player == 1 and self.p1_peices + self.p1_powerups > 0:
+                elif self.cursor[1] == 7 and self.player == 1 and self.p1_pieces + self.p1_powerups > 0:
                     self.cursor[0] = 1
-                    self.cursor[2] = min(self.cursor[2], self.p1_peices + self.p1_powerups - 1)
+                    self.cursor[2] = min(self.cursor[2], self.p1_pieces + self.p1_powerups - 1)
                 elif self.cursor[1] == 7 and not self.player == 1:
                     self.cursor[0] = 3
             elif key_code == RIGHT:
@@ -461,9 +490,9 @@ class Motus:
                     self.cursor[2] -= 1
             elif key_code == 108:
                 if self.player == 1:
-                    num_owned = self.p1_peices + self.p1_powerups + self.p1_rings
+                    num_owned = self.p1_pieces + self.p1_powerups + self.p1_rings
                 else:
-                    num_owned = self.p2_peices + self.p2_powerups + self.p2_rings
+                    num_owned = self.p2_pieces + self.p2_powerups + self.p2_rings
 
                 if self.cursor[2] < num_owned - 1:
                     self.cursor[2] += 1
@@ -496,21 +525,21 @@ class Motus:
             if key_code == 107:
                 self.cursor[0] = 0
 
-    def place_cursor(self, arr, animation):
+    def place_cursor(self, arr, player_view, animation):
         if not animation:
             return
         if self.cursor[0] == 0: #board
-            if self.player == 1:
+            if player_view == 1:
                 arr[3 + self.cursor[1]*2][3 + 4*self.cursor[2]] = '<'
                 arr[3 + self.cursor[1]*2][5 + 4*self.cursor[2]] = '>'
             else:
                 arr[17 - self.cursor[1]*2][36 - 5 - 4*self.cursor[2]] = '<'
                 arr[17 - self.cursor[1]*2][36 - 3 - 4*self.cursor[2]] = '>'
         if self.cursor[0] == 1: #owned
-            if self.player == 1:
-                split_num = self.p1_peices + self.p1_powerups
+            if player_view == 1:
+                split_num = self.p1_pieces + self.p1_powerups
             else:
-                split_num = self.p2_peices + self.p2_powerups
+                split_num = self.p2_pieces + self.p2_powerups
             extra_shift = max(self.cursor[2] - split_num + 1, 0)
             arr[20][3 + self.cursor[2]*2 + extra_shift] = '^'
         if self.cursor[0] == 2: #to buy
@@ -525,19 +554,19 @@ class Motus:
             for i in range(len(score)):
                 arr[0][10 + i] = score[i]
 
-    def place_selection(self, arr):
+    def place_selection(self, arr, player_view):
         if self.mode == 'move':
-            if self.player == 1:
+            if player_view == 1:
                 arr[3 + self.selection[1]*2][3 + 4*self.selection[2]] = '«'
                 arr[3 + self.selection[1]*2][5 + 4*self.selection[2]] = '»'
             else:
                 arr[17 - self.selection[1]*2][36 - 5 - 4*self.selection[2]] = '«'
                 arr[17 - self.selection[1]*2][36 - 3 - 4*self.selection[2]] = '»'
         if self.mode == 'place':
-            if self.player == 1:
-                split_num = self.p1_peices + self.p1_powerups
+            if player_view == 1:
+                split_num = self.p1_pieces + self.p1_powerups
             else:
-                split_num = self.p2_peices + self.p2_powerups
+                split_num = self.p2_pieces + self.p2_powerups
             extra_shift = max(self.selection[2] - split_num + 1, 0)
             arr[20][3 + self.selection[2]*2 + extra_shift] = '^'
 
@@ -563,11 +592,11 @@ class Motus:
             arr[shift_r + i+1][shift_c] = '║'
             arr[shift_r + i+1][shift_c + 32] = '║'
 
-    def place_pieces(self, arr, shift_r=2, shift_c=2):
+    def place_pieces(self, arr, player_view, shift_r=2, shift_c=2):
         for i in range(self.board.shape[0]):
             for j in range(self.board.shape[1]):
                 p = self.piece_dict[self.board[i][j]]
-                if self.player == 1:
+                if player_view == 1:
                     arr[shift_r + 1 + i*2][shift_c + 2 + 4*j] = p
                 else:
                     arr[shift_r + 16 - 1 - i*2][shift_c + 32 - 2 - 4*j] = p
@@ -575,7 +604,7 @@ class Motus:
         for i in range(self.board_rings.shape[0]):
             for j in range(self.board_rings.shape[1]):
                 p = self.ring_dict[self.board_rings[i][j]]
-                if self.player == 1:
+                if player_view == 1:
                     arr[shift_r + 1 + i*2][shift_c + 1 + 4*j] = p[0]
                     arr[shift_r + 1 + i*2][shift_c + 3 + 4*j] = p[1]
                 else:
@@ -583,73 +612,73 @@ class Motus:
                     arr[shift_r + 16 - 1 - i*2][shift_c + 32 - 1 - 4*j] = p[1]
 
 
-    def place_power_bar_down(self, arr, row=3, col=0, animation=True):
-        P = self.p2_power if self.player == 1 else self.p1_power
+    def place_power_bar_down(self, arr, player_view, row=3, col=0, animation=True):
+        P = self.p2_power if player_view == 1 else self.p1_power
         for i in range(P):
             arr[row + i][col] = '█' if animation else '▒'
         arr[row + P][col] = str(P)
 
-    def place_power_bar_up(self, arr, row=18, col=35, animation=True):
-        P = self.p1_power if self.player == 1 else self.p2_power
+    def place_power_bar_up(self, arr, player_view, row=18, col=35, animation=True):
+        P = self.p1_power if player_view == 1 else self.p2_power
         for i in range(P):
             arr[row - i][col] = '█' if animation else '▒'
         arr[row - P][col] = str(P)
 
-    def place_owned_pieces(self, arr):
-        if self.player == 1:
-            for i in range(self.p1_peices):
+    def place_owned_pieces(self, arr, player_view):
+        if player_view == 1:
+            for i in range(self.p1_pieces):
                 arr[19][3 + 2*i] = self.piece_dict[1]
             for i in range(self.p1_powerups):
-                arr[19][3 + 2*self.p1_peices + 2*i] = self.piece_dict[2]
+                arr[19][3 + 2*self.p1_pieces + 2*i] = self.piece_dict[2]
             for i in range(self.p1_rings):
-                arr[19][3 + 2*self.p1_peices + 2*self.p1_powerups + 3*i] = self.ring_dict[1][0]
-                arr[19][3 + 2*self.p1_peices + 2*self.p1_powerups + 3*i + 1] = self.ring_dict[1][1]
+                arr[19][3 + 2*self.p1_pieces + 2*self.p1_powerups + 3*i] = self.ring_dict[1][0]
+                arr[19][3 + 2*self.p1_pieces + 2*self.p1_powerups + 3*i + 1] = self.ring_dict[1][1]
 
-            for i in range(self.p2_peices):
+            for i in range(self.p2_pieces):
                 arr[1][33 - 2*i] = self.piece_dict[-1]
             for i in range(self.p2_powerups):
-                arr[1][33 - 2*self.p2_peices - 2*i] = self.piece_dict[-2]
+                arr[1][33 - 2*self.p2_pieces - 2*i] = self.piece_dict[-2]
             for i in range(self.p2_rings):
-                arr[1][33 - 2*self.p2_peices - 2*self.p2_powerups - 3*i - 1] = self.ring_dict[-1][0]
-                arr[1][33 - 2*self.p2_peices - 2*self.p2_powerups - 3*i] = self.ring_dict[-1][1]
+                arr[1][33 - 2*self.p2_pieces - 2*self.p2_powerups - 3*i - 1] = self.ring_dict[-1][0]
+                arr[1][33 - 2*self.p2_pieces - 2*self.p2_powerups - 3*i] = self.ring_dict[-1][1]
         else:
-            for i in range(self.p2_peices):
+            for i in range(self.p2_pieces):
                 arr[19][3 + 2*i] = self.piece_dict[-1]
             for i in range(self.p2_powerups):
-                arr[19][3 + 2*self.p2_peices + 2*i] = self.piece_dict[-2]
+                arr[19][3 + 2*self.p2_pieces + 2*i] = self.piece_dict[-2]
             for i in range(self.p2_rings):
-                arr[19][3 + 2*self.p2_peices + 2*self.p2_powerups + 3*i] = self.ring_dict[-1][0]
-                arr[19][3 + 2*self.p2_peices + 2*self.p2_powerups + 3*i + 1] = self.ring_dict[-1][1]
+                arr[19][3 + 2*self.p2_pieces + 2*self.p2_powerups + 3*i] = self.ring_dict[-1][0]
+                arr[19][3 + 2*self.p2_pieces + 2*self.p2_powerups + 3*i + 1] = self.ring_dict[-1][1]
 
-            for i in range(self.p1_peices):
+            for i in range(self.p1_pieces):
                 arr[1][33 - 2*i] = self.piece_dict[1]
             for i in range(self.p1_powerups):
-                arr[1][33 - 2*self.p1_peices - 2*i] = self.piece_dict[2]
+                arr[1][33 - 2*self.p1_pieces - 2*i] = self.piece_dict[2]
             for i in range(self.p1_rings):
-                arr[1][33 - 2*self.p1_peices - 2*self.p1_powerups - 3*i - 1] = self.ring_dict[1][0]
-                arr[1][33 - 2*self.p1_peices - 2*self.p1_powerups - 3*i] = self.ring_dict[1][1]
+                arr[1][33 - 2*self.p1_pieces - 2*self.p1_powerups - 3*i - 1] = self.ring_dict[1][0]
+                arr[1][33 - 2*self.p1_pieces - 2*self.p1_powerups - 3*i] = self.ring_dict[1][1]
 
-    def place_pieces_to_buy(self, arr):
+    def place_pieces_to_buy(self, arr, player_view):
         for i in range(2,19):
             arr[i][37] = '│'
 
-        if self.player == 1:
+        if player_view == 1:
             for i in range(self.p1_powerups_to_buy):
                 arr[17-i][39] = self.piece_dict[2]
             for i in range(self.p2_powerups_to_buy):
                 arr[3+i][39] = self.piece_dict[-2]
-            for i in range(self.p1_peices_to_buy):
+            for i in range(self.p1_pieces_to_buy):
                 arr[17-i][38] = self.piece_dict[1]
-            for i in range(self.p2_peices_to_buy):
+            for i in range(self.p2_pieces_to_buy):
                 arr[3+i][38] = self.piece_dict[-1]
         else:
             for i in range(self.p2_powerups_to_buy):
                 arr[17-i][39] = self.piece_dict[-2]
             for i in range(self.p1_powerups_to_buy):
                 arr[3+i][39] = self.piece_dict[2]
-            for i in range(self.p2_peices_to_buy):
+            for i in range(self.p2_pieces_to_buy):
                 arr[17-i][38] = self.piece_dict[-1]
-            for i in range(self.p1_peices_to_buy):
+            for i in range(self.p1_pieces_to_buy):
                 arr[3+i][38] = self.piece_dict[1]
 
         for i in range(self.rings):
@@ -669,23 +698,24 @@ class Motus:
             arr[12][39+i] = score[i]
 
 
-    def render(self, animation):
+    def render(self, animation, player_view, do_turn = True):
         arr = [[' ' for _ in range(49)] for _ in range (22)]
 
-        self.place_power_bar_down(arr, animation=animation)
-        self.place_power_bar_up(arr, animation=animation)
+        self.place_power_bar_down(arr, player_view, animation=animation)
+        self.place_power_bar_up(arr, player_view, animation=animation)
         self.place_grid(arr)
 
-        self.place_pieces(arr)
-        self.place_owned_pieces(arr)
-        self.place_pieces_to_buy(arr)
+        self.place_pieces(arr, player_view)
+        self.place_owned_pieces(arr, player_view)
+        self.place_pieces_to_buy(arr, player_view)
 
-        self.place_selection(arr)
-        self.place_cursor(arr, animation)
+        self.place_selection(arr, player_view)
+        self.place_cursor(arr, player_view, animation)
         self.place_score(arr)
         self.place_error(arr)
 
-        self.next_turn()
+        if do_turn:
+            self.next_turn()
 
         os.system('cls' if os.name == 'nt' else 'clear')
         s = ""
@@ -701,7 +731,7 @@ def read_kbd_input(inputQueue):
     while (True):
         inputQueue.put(ord(getch()))
 
-def main():
+def local_game():
     EXIT_COMMAND = 113
     inputQueue = queue.Queue()
 
@@ -714,7 +744,7 @@ def main():
     need_render = True
 
     game = Motus()
-    game.render(False)
+    game.render(False, game.player)
 
     while (True):
         if (inputQueue.qsize() > 0):
@@ -735,8 +765,113 @@ def main():
             need_render = True
 
         if need_render:
-            game.render(animation)
+            game.render(animation, game.player)
             need_render = False
     print("Exit")
 
-main()
+def read_size(s, length_data):
+    buff = b''
+    while len(buff) < length_data:
+        buff += s.recv(1)
+    return buff
+
+def handle_client(conn, game):
+    while True:
+        length_data = read_size(conn,4)
+        data = read_size(conn, int.from_bytes(length_data, 'big'))
+        new_game = pickle.loads(data)
+        if new_game != None:
+            game[0] = new_game
+        data = pickle.dumps(game[0])
+        conn.send((len(data)).to_bytes(4, byteorder='big'))
+        conn.send(data)
+
+def make_host(ip, port):
+    game = [Motus()]
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind((ip, port))
+    while True:
+        s.listen(1)
+        conn, address = s.accept()
+        clientThread = threading.Thread(target=handle_client, args=(conn,game,), daemon=True)
+        clientThread.start()
+
+
+def update_game(s, game):
+    data_string = pickle.dumps(game)
+    s.send((len(data_string)).to_bytes(4, byteorder='big'))
+    s.send(data_string)
+    length_data = read_size(s,4)
+    data_string = read_size(s, int.from_bytes(length_data, 'big'))
+    new_game = pickle.loads(data_string)
+    return new_game
+
+def networked_game(ip, port, is_host=True):
+    EXIT_COMMAND = 113
+    inputQueue = queue.Queue()
+
+    if is_host:
+        serverThread = threading.Thread(target=make_host, args=(ip,port,), daemon=True)
+        serverThread.start()
+
+    inputThread = threading.Thread(target=read_kbd_input, args=(inputQueue,), daemon=True)
+    inputThread.start()
+
+
+    animation_length = .5
+    last_animation = time.time()
+    animation = False
+    need_render = True
+
+    game = None
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((ip, port))
+
+    while True:
+        if game == None:
+            game = update_game(s, None)
+        is_my_turn = (is_host and game.player == 1) or (not is_host and game.player != 1)
+        if not is_my_turn:
+            new_game = update_game(s, None)
+            if not new_game == game:
+                game = new_game
+                need_render = True
+
+        if (inputQueue.qsize() > 0):
+            key_code = inputQueue.get()
+            if (key_code == EXIT_COMMAND):
+                print("Exiting Game")
+                break
+            if is_my_turn:
+                game.input(key_code)
+                game.shift_cursor(key_code)
+            animation = True
+            last_animation = time.time()
+            need_render = True
+
+        if time.time() - last_animation > animation_length:
+            animation = not animation
+            last_animation = time.time()
+            need_render = True
+
+        if need_render:
+            game.render(animation, (1 if is_host else 2), is_my_turn)
+            if game.turn_just_changed or is_my_turn:
+                game.turn_just_changed = False
+                _ = update_game(s, game)
+            need_render = False
+    print("Exit")
+
+def main():
+    t = input("[1] Local Game [2] Network Game: ")
+    if t == "1":
+        local_game()
+    else:
+        is_host = input("host [y/n]: ") == "y"
+        ip = input("ip: ")
+        port = int(input("port: "))
+        networked_game(ip, port, is_host=is_host)
+
+if __name__ == "__main__":
+    main()
