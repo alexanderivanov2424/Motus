@@ -769,7 +769,7 @@ class Motus:
         for i in range(len(arr)):
             for j in range(len(arr[0])):
                 s += arr[i][j]
-            s += "\n"
+            s += "\r\n"
         print(s)
 
 def read_kbd_input(inputQueue):
