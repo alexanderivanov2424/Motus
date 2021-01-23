@@ -71,7 +71,7 @@ class Motus:
         self.p1_score = 0
         self.p2_score = 0
 
-        self.p1_power = 0
+        self.p1_power = 8
         self.p1_pieces = 0
         self.p1_powerups = 0
         self.p1_rings = 0
@@ -362,6 +362,12 @@ class Motus:
             if self.board[loc[0]][loc[1]] != 0:
                 self.error = "occupied"
                 return
+            if self.player == 1:
+                self.board_rings[loc[0]][loc[1]] = 1
+                self.p1_rings -= 1
+            else:
+                self.board_rings[loc[0]][loc[1]] = -1
+                self.p2_rings -= 1
         else:
             self.error = "!! invalid piece !!"
             return
@@ -458,12 +464,12 @@ class Motus:
                     self.make_place(self.cursor[1:], type)
                     self.selection = None
                     self.mode = None
-            if self.cursor[0] == 1:
+            elif self.cursor[0] == 1:
                 if self.selection == None:
                     self.selection = list(self.cursor)
                     self.mode = 'place'
 
-            if self.cursor[0] == 2:
+            elif self.cursor[0] == 2:
                 type = "none"
                 if self.cursor[1] == 0:
                     type = "ring"
@@ -472,7 +478,7 @@ class Motus:
                 else:
                     type = "powerup"
                 self.make_buy(type)
-            if self.selection != None and self.selection[0] == 0 and self.cursor[0] == 3:
+            elif self.selection != None and self.selection[0] == 0 and self.cursor[0] == 3:
                 self.make_score(self.selection[1:])
                 self.mode = None
 
