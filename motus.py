@@ -71,14 +71,14 @@ class Motus:
         self.p1_score = 0
         self.p2_score = 0
 
-        self.p1_power = 4
+        self.p1_power = 0
         self.p1_pieces = 0
         self.p1_powerups = 0
         self.p1_rings = 0
         self.p1_pieces_to_buy = 3
         self.p1_powerups_to_buy = 4
 
-        self.p2_power = 5 #start with 1 extra power because second
+        self.p2_power = 1 #start with 1 extra power because second
         self.p2_pieces = 0
         self.p2_rings = 0
         self.p2_powerups = 0
@@ -494,9 +494,9 @@ class Motus:
             if key_code == UP:
                 if self.cursor[1] > 0:
                     self.cursor[1] -= 1
-                elif self.cursor[1] == 0 and not self.player == 1 and self.p2_pieces + self.p2_powerups + self.p1_rings > 0:
+                elif self.cursor[1] == 0 and not self.player == 1 and self.p2_pieces + self.p2_powerups + self.p2_rings > 0:
                     self.cursor[0] = 1
-                    self.cursor[2] = min((7 - self.cursor[2]), self.p2_pieces + self.p2_powerups - 1)
+                    self.cursor[2] = min((7 - self.cursor[2]), self.p2_pieces + self.p2_powerups + self.p2_rings - 1)
                 elif self.cursor[1] == 0 and self.player == 1:
                     self.cursor[0] = 3
             elif key_code == LEFT:
@@ -511,7 +511,7 @@ class Motus:
                     self.cursor[1] += 1
                 elif self.cursor[1] == 7 and self.player == 1 and self.p1_pieces + self.p1_powerups + self.p1_rings > 0:
                     self.cursor[0] = 1
-                    self.cursor[2] = min(self.cursor[2], self.p1_pieces + self.p1_powerups - 1)
+                    self.cursor[2] = min(self.cursor[2], self.p1_pieces + self.p1_powerups + self.p1_rings - 1)
                 elif self.cursor[1] == 7 and not self.player == 1:
                     self.cursor[0] = 3
             elif key_code == RIGHT:
